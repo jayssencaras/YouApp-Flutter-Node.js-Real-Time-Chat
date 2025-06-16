@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import '../services/api_service.dart';
@@ -20,6 +19,7 @@ class ChatScreen extends StatefulWidget {
 
 class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _messageController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
   List<Map<String, dynamic>> _messages = [];
   bool _isLoading = true;
   late IO.Socket socket;
@@ -35,11 +35,12 @@ class _ChatScreenState extends State<ChatScreen> {
   void dispose() {
     socket.dispose();
     _messageController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
   void _connectSocket() {
-    socket = IO.io('http://10.0.2.2:5000', <String, dynamic>{
+    socket = IO.io('http://localhost:5000', <String, dynamic>{
       'transports': ['websocket'],
       'autoConnect': false,
     });
@@ -48,13 +49,16 @@ class _ChatScreenState extends State<ChatScreen> {
 
     socket.onConnect((_) {
       final userId = ApiService.getLoggedInUserId();
+      print('🔌 Connected to Socket.IO — Registering user $userId');
       socket.emit('register', userId);
     });
 
     socket.on('newMessage', (data) {
       setState(() {
         _messages.add(data);
+        _messages.sort((a, b) => a['timestamp'].compareTo(b['timestamp']));
       });
+      _scrollToBottom();
     });
 
     socket.onDisconnect((_) => print('Socket disconnected'));
@@ -67,6 +71,7 @@ class _ChatScreenState extends State<ChatScreen> {
         _messages = messages;
         _isLoading = false;
       });
+      _scrollToBottom();
     }
   }
 
@@ -88,6 +93,14 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -101,11 +114,14 @@ class _ChatScreenState extends State<ChatScreen> {
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : ListView.builder(
+                    controller: _scrollController,
                     itemCount: _messages.length,
                     itemBuilder: (context, index) {
                       final message = _messages[index];
-                      final isMe = message['sender']['_id'] ==
-                          ApiService.getLoggedInUserId();
+                      final currentUserId = ApiService.getLoggedInUserId();
+                      final senderId =
+                          message['sender']?['_id'] ?? message['senderId'];
+                      final isMe = senderId == currentUserId;
 
                       return Align(
                         alignment:

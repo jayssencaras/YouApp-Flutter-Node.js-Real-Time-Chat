@@ -229,9 +229,8 @@ const userRoutes = require('./models/userRoutes');
 app.use('/api/users', userRoutes);
 
 // 🚀 Start Server
-app.listen(PORT, () => {
-  console.log(`✅ Backend server running at http://localhost:${PORT}`);
-});
+
+
 
 const http = require('http');
 const { Server } = require('socket.io');
@@ -251,12 +250,23 @@ io.on('connection', (socket) => {
 
   socket.on('register', (userId) => {
     onlineUsers.set(userId, socket.id);
+    console.log(`✅ Registered user ${userId} with socket ${socket.id}`);
   });
 
   socket.on('sendMessage', (messageData) => {
+    console.log('📤 sendMessage called', messageData);
+
     const recipientSocketId = onlineUsers.get(messageData.recipientId);
+    const senderSocketId = onlineUsers.get(messageData.senderId);
+
     if (recipientSocketId) {
       io.to(recipientSocketId).emit('newMessage', messageData);
+      console.log(`✅ Sent to recipient ${messageData.recipientId}`);
+    }
+
+    if (senderSocketId && senderSocketId !== recipientSocketId) {
+      io.to(senderSocketId).emit('newMessage', messageData);
+      console.log(`✅ Sent to sender ${messageData.senderId}`);
     }
   });
 
@@ -265,10 +275,18 @@ io.on('connection', (socket) => {
     for (let [userId, sockId] of onlineUsers.entries()) {
       if (sockId === socket.id) {
         onlineUsers.delete(userId);
+        console.log(`🧹 Removed user ${userId} from onlineUsers`);
         break;
       }
     }
   });
 });
+
+
+server.listen(PORT, () => {
+  console.log(`✅ Backend server running with WebSocket at http://localhost:${PORT}`);
+});
+
+
 
 
