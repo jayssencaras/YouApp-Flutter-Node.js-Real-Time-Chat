@@ -1,0 +1,8 @@
+{
+  "dependencies": {
+    "mongoose": "^8.15.1"
+  },
+  "devDependencies": {
+    "jest": "^30.0.0"
+  }
+}
